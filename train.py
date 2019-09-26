@@ -24,18 +24,24 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
-#df = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/stage_1_train.csv')
-df = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/sample.csv')
+df = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/stage_1_train.csv')
+#df = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/sample.csv')
 df['Sub_type'] = df['ID'].str.split("_", n = 3, expand = True)[2]
 df['PatientID'] = df['ID'].str.split("_", n = 3, expand = True)[1]
 bleed_subtype_df = df.loc[df['Sub_type'] == 'any']
-pf_loader = PF_Loader(bleed_subtype_df)
 
-n_batches = 30
+
+df_subtype_pos = bleed_subtype_df.loc[bleed_subtype_df['Label'] == 1]
+df_subtype_neg = bleed_subtype_df.loc[bleed_subtype_df['Label'] == 0]
+
+pf_loader_pos = PF_Loader(df_subtype_pos)
+pf_loader_neg = PF_Loader(df_subtype_neg)
+
+n_batches = 3000
 batch_size = 20
 lr = 0.1
 lr_log = 0.1
-device = 'cpu' #'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 loss_fn = nn.CrossEntropyLoss()
 bleed_net = BleedNet()
 bleed_net.to(device)
@@ -53,18 +59,19 @@ test_loss_log = []
 #TRAIN THE MODEL
 for i in range(n_batches):
     bleed_net.train()
-    x, y = next_batch(pf_loader,batch_size=batch_size)
+    try:
+        x, y = next_batch(pf_loader_pos,pf_loader_neg,batch_size=batch_size)
+    except:
+        continue
     x_train_tensor = torch.from_numpy(x).float().to(device)
     y_train_tensor = torch.from_numpy(y).long().to(device)
     y_train_tensor = y_train_tensor.argmax(dim=1)
-
     yhat = bleed_net(x_train_tensor)
     yhat_choice = yhat.argmax(dim=1)
 
     acc = y_train_tensor == yhat_choice
     acc = acc.sum().float() / acc.shape[0]
     loss = loss_fn(yhat, y_train_tensor)
-
     loss.backward()    
     optimizer.step()
     optimizer.zero_grad()
@@ -72,9 +79,9 @@ for i in range(n_batches):
     print('Loss: {} | Acc: {} | Batch {}/{}'.format(loss.item(),acc,i,n_batches))
 
 
-
-
-
+import time
+timestr = time.strftime("%Y%m%d-%H%M%S")
+torch.save(bleed_net.state_dict(), 'models/bleednet_acc_{}_{}.torch'.format(acc,timestr))
 
 
 

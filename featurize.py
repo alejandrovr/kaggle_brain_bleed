@@ -14,10 +14,14 @@ def dcm2np(dcm_file):
     im = im / im.max()
     return im
 
-def next_batch(pf_loader,batch_size=100):
+def next_batch(pf_loader_p, pf_loader_n, batch_size=100):
     batch = []
     for i in range(batch_size):
-        x, y = pf_loader.__getitem__()
+        if i % 2 == 0:
+            x, y = pf_loader_p.__getitem__(pos_neg=1)
+        else:
+            x, y = pf_loader_n.__getitem__(pos_neg=0)
+
         batch.append((x,y))
 
     batch_x = np.array([i[0] for i in batch])
@@ -34,13 +38,13 @@ class PF_Loader(Dataset):
     def __len__(self):
         return len(self.df) 
 
-    def __getitem__(self):
+    def __getitem__(self, pos_neg=0):
         """Itemgetter for Loader"""
         data = self.df.sample(1)
         img_name = data.iloc[0].PatientID
         file_name = '/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/stage_1_train_images/ID_'+img_name+'.dcm'
         np_image = dcm2np(file_name)
-        label = data.iloc[0].Label
+        label = pos_neg
         #plt.imshow(np_image)
         #plt.title(str(label))
         #plt.show()
