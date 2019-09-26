@@ -22,7 +22,8 @@ def next_batch(pf_loader_p, pf_loader_n, batch_size=100):
         else:
             x, y = pf_loader_n.__getitem__(pos_neg=0)
 
-        batch.append((x,y))
+        if x.shape == (512, 512):
+            batch.append((x,y))
 
     batch_x = np.array([i[0] for i in batch])
     batch_x = batch_x[:,np.newaxis,:]

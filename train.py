@@ -22,36 +22,71 @@ import pickle
 import os
 import matplotlib.pyplot as plt
 import pandas as pd
+from sklearn.utils import shuffle
+
+def df2pf_loader(df):
+    df['Sub_type'] = df['ID'].str.split("_", n = 3, expand = True)[2]
+    df['PatientID'] = df['ID'].str.split("_", n = 3, expand = True)[1]
+    bleed_subtype_df = df.loc[df['Sub_type'] == 'any']
+
+    df_subtype_pos = bleed_subtype_df.loc[bleed_subtype_df['Label'] == 1]
+    df_subtype_neg = bleed_subtype_df.loc[bleed_subtype_df['Label'] == 0]
+
+    pf_loader_pos = PF_Loader(df_subtype_pos)
+    pf_loader_neg = PF_Loader(df_subtype_neg)
+    return pf_loader_pos, pf_loader_neg
 
 
-df = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/stage_1_train.csv')
-#df = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/sample.csv')
-df['Sub_type'] = df['ID'].str.split("_", n = 3, expand = True)[2]
-df['PatientID'] = df['ID'].str.split("_", n = 3, expand = True)[1]
-bleed_subtype_df = df.loc[df['Sub_type'] == 'any']
+make_split = False
 
+if make_split:
+    df = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/stage_1_train.csv')
+    df = shuffle(df)
 
-df_subtype_pos = bleed_subtype_df.loc[bleed_subtype_df['Label'] == 1]
-df_subtype_neg = bleed_subtype_df.loc[bleed_subtype_df['Label'] == 0]
+    msk = np.random.rand(len(df)) < 0.8 #80% for training
+    train = df[msk]
+    val_test = df[~msk]
 
-pf_loader_pos = PF_Loader(df_subtype_pos)
-pf_loader_neg = PF_Loader(df_subtype_neg)
+    msk_val_test = np.random.rand(len(val_test)) < 0.5
+    val = val_test[msk_val_test] #10% val
+    test = val_test[~msk_val_test] #10% test
 
-n_batches = 3000
-batch_size = 20
+    print('Train size:', len(train))
+    print('Val size:', len(val))
+    print('Test size:', len(test))
+
+    train.to_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/split_train.csv')
+    val.to_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/split_val.csv')
+    test.to_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/split_test.csv')
+    df = train
+
+else:
+    df = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/split_train.csv')
+    val = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/split_val.csv')
+    test = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/split_test.csv')
+
+#Load data
+train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df) 
+val_pf_loader_pos, val_pf_loader_neg = df2pf_loader(val) 
+test_pf_loader_pos, test_pf_loader_neg = df2pf_loader(test) 
+
+#Learning and net parameters
+n_batches = 5000
+batch_size = 25
 lr = 0.1
 lr_log = 0.1
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 loss_fn = nn.CrossEntropyLoss()
 bleed_net = BleedNet()
 bleed_net.to(device)
-
 optimizer = optim.SGD(bleed_net.parameters(), lr=lr) #momentum?
 from torch.optim.lr_scheduler import StepLR
-stepsize = 200
-lr_gamma = 0.99
+stepsize = 100
+lr_gamma = 0.5
 scheduler = StepLR(optimizer, step_size=stepsize, gamma=lr_gamma)
-loss_log = []
+
+#Initialize logs
+train_loss_log = []
 val_loss_log = []
 test_loss_log = []
 
@@ -59,10 +94,7 @@ test_loss_log = []
 #TRAIN THE MODEL
 for i in range(n_batches):
     bleed_net.train()
-    try:
-        x, y = next_batch(pf_loader_pos,pf_loader_neg,batch_size=batch_size)
-    except:
-        continue
+    x, y = next_batch(train_pf_loader_pos,train_pf_loader_neg,batch_size=batch_size)
     x_train_tensor = torch.from_numpy(x).float().to(device)
     y_train_tensor = torch.from_numpy(y).long().to(device)
     y_train_tensor = y_train_tensor.argmax(dim=1)
@@ -77,14 +109,57 @@ for i in range(n_batches):
     optimizer.zero_grad()
     scheduler.step()
     print('Loss: {} | Acc: {} | Batch {}/{}'.format(loss.item(),acc,i,n_batches))
+    train_loss_log.append((loss.item(),acc))
+
+    if i % 100 == 0:
+        bleed_net.eval()
+        try:
+            x, y = next_batch(val_pf_loader_pos, val_pf_loader_neg, batch_size=25)
+        except:
+            continue
+        x_val_tensor = torch.from_numpy(x).float().to(device)
+        y_val_tensor = torch.from_numpy(y).long().to(device)
+        y_val_tensor = y_val_tensor.argmax(dim=1)
+        yhat = bleed_net(x_val_tensor)
+        yhat_choice = yhat.argmax(dim=1)
+
+        acc = y_val_tensor == yhat_choice
+        acc = acc.sum().float() / acc.shape[0]
+        loss = loss_fn(yhat, y_val_tensor)  
+        optimizer.zero_grad()
+        print('\n\n\nVALIDATION Loss: {} | Acc: {} | Batch {}/{}\n\n\n'.format(loss.item(),acc,i,n_batches))
+        val_loss_log.append((loss.item(),acc))
 
 
+#FINALLY, TEST IT
+print('Evaluating net performance on test split...')
+bleed_net.eval()
+for test_idx in range(10):
+    x, y = next_batch(test_pf_loader_pos, test_pf_loader_neg, batch_size=25)
+    x_test_tensor = torch.from_numpy(x).float().to(device)
+    y_test_tensor = torch.from_numpy(y).long().to(device)
+    y_test_tensor = y_test_tensor.argmax(dim=1)
+    yhat = bleed_net(x_test_tensor)
+    yhat_choice = yhat.argmax(dim=1)
+    acc = y_test_tensor == yhat_choice
+    acc = acc.sum().float() / acc.shape[0]
+    loss = loss_fn(yhat, y_test_tensor)  
+    optimizer.zero_grad()
+    print('\n\n\nTEST Loss: {} | Acc: {} | Batch {}/{}\n\n\n'.format(loss.item(),acc,i,n_batches))
+    test_loss_log.append((loss.item(),acc))
+
+
+print('Saving the model...')
 import time
 timestr = time.strftime("%Y%m%d-%H%M%S")
-torch.save(bleed_net.state_dict(), 'models/bleednet_acc_{}_{}.torch'.format(acc,timestr))
+torch.save(bleed_net.state_dict(), 'models/bleednet_testacc_{}_{}.torch'.format(acc,timestr))
+print('Model saved in:','models/bleednet_testacc_{}_{}.torch'.format(acc,timestr))
 
-
-
+plt.plot([i[0] for i in train_loss_log])
+plt.plot([i[1] for i in val_loss_log])
+plt.plot([i[1] for i in test_loss_log])
+plt.show()
+print('Exiting...')
 
 
 
