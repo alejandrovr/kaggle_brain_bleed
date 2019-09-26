@@ -29,13 +29,13 @@ class BleedNet(nn.Module):
 
     def forward(self, x):
         out = self.layer1(x)
-        print(out.size())
+        #print(out.size())
         out = self.layer2(out)
-        print(out.size())
+        #print(out.size())
         out = out.reshape(out.size(0), -1)
-        print(out.size())
+        #print(out.size())
         out = self.wrap_up(out)
-        print(out.size())
+        #print(out.size())
         return out
     
 if __name__ == '__main__':

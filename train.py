@@ -1,6 +1,7 @@
 from code.net import BleedNet
 
 import os
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 import pickle
 import random
 import glob
@@ -12,74 +13,78 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau, ExponentialLR
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
 from tqdm import tqdm
-from rDeep.net import KDeepLight, KDeepLighter
-from rDeep.featurize import featurize_prot_lig, LJ_potential
+from code.net import BleedNet
+from code.featurize import next_batch, PF_Loader
 import torch.nn as nn
 import torch.optim as optim
-from multiprocessing import Pool
 import psutil
 import pickle
 import os
-from rDeep.kdeeploader import PF_Loader
 import matplotlib.pyplot as plt
-
-def next_batch_category(codes, batch_size=300):
-    pocket_batch = []
-    for i in range(batch_size):
-        new_code = random.choice(codes)
-        try:
-            pose, label = pf_loader.__getitem__(new_code)
-            pocket_batch.append([pose,label]) 
-        except Exception as e:
-            print(new_code,e)
-            continue
-    random.shuffle(pocket_batch)   
-    
-    #find amound of examples in less pop class
-    pb_count = {tuple(label[0]):0 for _,label in pocket_batch}
-    for pb in pocket_batch:
-        pb_count[tuple(pb[1][0])] += 1
-        
-    less_pop = min([i[1] for i in pb_count.items()])
-    
-    class_eq_count = {tuple(label[0]):0 for _,label in pocket_batch}
-    final_batch = []
-    for texample in pocket_batch:
-        class_key = tuple(texample[1][0])
-        if class_eq_count[class_key] < less_pop:
-            final_batch.append(texample)
-            class_eq_count[class_key] += 1
-            
-    return final_batch
+import pandas as pd
 
 
-pf_loader = PF_Loader(rotation_mode="random", rotate=True, perturb=False,pretrain=pretrain_model)
+#df = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/stage_1_train.csv')
+df = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/sample.csv')
+df['Sub_type'] = df['ID'].str.split("_", n = 3, expand = True)[2]
+df['PatientID'] = df['ID'].str.split("_", n = 3, expand = True)[1]
+bleed_subtype_df = df.loc[df['Sub_type'] == 'any']
+pf_loader = PF_Loader(bleed_subtype_df)
 
-
-n_batches = 3000
+n_batches = 30
 batch_size = 20
 lr = 0.1
 lr_log = 0.1
+device = 'cpu' #'cuda' if torch.cuda.is_available() else 'cpu'
+loss_fn = nn.CrossEntropyLoss()
+bleed_net = BleedNet()
+bleed_net.to(device)
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-#loss_fn = nn.CrossEntropyLoss()
-loss_fn = nn.MSELoss()
-kdeep_net = KDeepLighter()
-
-if not pretrain_model:
-    kdeep_net.load_state_dict(torch.load('models/rDeep_val_91_20190925-105400_True.torch'))
-    kdeep_net.wrap_up[2] = nn.Linear(in_features=512, out_features=1, bias=True)
-
-#Best so far: trained in 30000 epochs, crystal vs poses models/rDeep_val_84_20190924-174225.pkl
-kdeep_net.to(device)
-
-optimizer = optim.SGD(kdeep_net.parameters(), lr=lr) #momentum?
+optimizer = optim.SGD(bleed_net.parameters(), lr=lr) #momentum?
 from torch.optim.lr_scheduler import StepLR
 stepsize = 200
-lr_gamma = 0.90
+lr_gamma = 0.99
 scheduler = StepLR(optimizer, step_size=stepsize, gamma=lr_gamma)
 loss_log = []
 val_loss_log = []
 test_loss_log = []
+
+
+#TRAIN THE MODEL
+for i in range(n_batches):
+    bleed_net.train()
+    x, y = next_batch(pf_loader,batch_size=batch_size)
+    x_train_tensor = torch.from_numpy(x).float().to(device)
+    y_train_tensor = torch.from_numpy(y).long().to(device)
+    y_train_tensor = y_train_tensor.argmax(dim=1)
+
+    yhat = bleed_net(x_train_tensor)
+    yhat_choice = yhat.argmax(dim=1)
+
+    acc = y_train_tensor == yhat_choice
+    acc = acc.sum().float() / acc.shape[0]
+    loss = loss_fn(yhat, y_train_tensor)
+
+    loss.backward()    
+    optimizer.step()
+    optimizer.zero_grad()
+    scheduler.step()
+    print('Loss: {} | Acc: {} | Batch {}/{}'.format(loss.item(),acc,i,n_batches))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

@@ -11,6 +11,7 @@ from torch.utils.data import Dataset
 def dcm2np(dcm_file):
     ds = pydicom.dcmread(dcm_file)
     im = ds.pixel_array
+    im = im / im.max()
     return im
 
 def next_batch(pf_loader,batch_size=100):
@@ -20,6 +21,7 @@ def next_batch(pf_loader,batch_size=100):
         batch.append((x,y))
 
     batch_x = np.array([i[0] for i in batch])
+    batch_x = batch_x[:,np.newaxis,:]
     batch_y = np.array([[0,1] if i[1]==1 else [1,0] for i in batch])
 
     return batch_x, batch_y
@@ -46,12 +48,13 @@ class PF_Loader(Dataset):
 
 
 if __name__ == "__main__":
-    if False:
-        #thanks to https://www.kaggle.com/marcovasquez/basic-eda-data-visualization
-        df = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/stage_1_train.csv')
-        df['Sub_type'] = df['ID'].str.split("_", n = 3, expand = True)[2]
-        df['PatientID'] = df['ID'].str.split("_", n = 3, expand = True)[1]
 
+    #thanks to https://www.kaggle.com/marcovasquez/basic-eda-data-visualization
+    df = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/stage_1_train.csv')
+    df['Sub_type'] = df['ID'].str.split("_", n = 3, expand = True)[2]
+    df['PatientID'] = df['ID'].str.split("_", n = 3, expand = True)[1]
+
+    if False:
         for subtype in ['intraparenchymal', 'any', 'epidural', 'intraventricular','subarachnoid', 'subdural']:
             bleed_subtype_df = df.loc[df['Sub_type'] == subtype]
             df_subtype_pos = bleed_subtype_df.loc[bleed_subtype_df['Label'] == 1]
@@ -77,13 +80,5 @@ if __name__ == "__main__":
 
 
             input('Next subtype?')
-
-
-    df = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/stage_1_train.csv')
-    df['Sub_type'] = df['ID'].str.split("_", n = 3, expand = True)[2]
-    df['PatientID'] = df['ID'].str.split("_", n = 3, expand = True)[1]
-    bleed_subtype_df = df.loc[df['Sub_type'] == 'any']
-    pf_loader = PF_Loader(bleed_subtype_df)
-    x, y = next_batch(pf_loader,batch_size=10)
 
 
