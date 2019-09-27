@@ -66,15 +66,15 @@ else:
     test = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/split_test.csv')
 
 #Load data
-train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df.sample(10000))
+train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df.sample(100000))
 
 
 val_pf_loader_pos, val_pf_loader_neg = df2pf_loader(val) 
 test_pf_loader_pos, test_pf_loader_neg = df2pf_loader(test) 
 
 #Learning and net parameters
-n_batches = 2000
-batch_size = 10
+n_batches = 4000
+batch_size = 20
 lr = 0.1
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 loss_fn = nn.CrossEntropyLoss()
@@ -82,7 +82,7 @@ bleed_net = BleedNet2()
 bleed_net.to(device)
 optimizer = optim.SGD(bleed_net.parameters(), lr=lr) #momentum?
 from torch.optim.lr_scheduler import StepLR
-stepsize = 100
+stepsize = 100 #100
 lr_gamma = 0.9
 scheduler = StepLR(optimizer, step_size=stepsize, gamma=lr_gamma)
 
@@ -104,6 +104,7 @@ for i in range(n_batches):
 
     acc = y_train_tensor == yhat_choice
     acc = acc.sum().float() / acc.shape[0]
+    acc = acc.cpu().item()
     loss = loss_fn(yhat, y_train_tensor)
     loss.backward()    
     optimizer.step()
@@ -115,7 +116,7 @@ for i in range(n_batches):
     if i % 100 == 0:
         bleed_net.eval()
         try:
-            x, y = next_batch(val_pf_loader_pos, val_pf_loader_neg, batch_size=20)
+            x, y = next_batch(val_pf_loader_pos, val_pf_loader_neg, batch_size=25)
         except:
             continue
         x_val_tensor = torch.from_numpy(x).float().to(device)
@@ -126,6 +127,7 @@ for i in range(n_batches):
 
         acc = y_val_tensor == yhat_choice
         acc = acc.sum().float() / acc.shape[0]
+        acc = acc.cpu().item()
         loss = loss_fn(yhat, y_val_tensor)  
         optimizer.zero_grad()
         print('\n\n\nVALIDATION Loss: {} | Acc: {} | Batch {}/{}\n\n\n'.format(loss.item(),acc,i,n_batches))
@@ -135,8 +137,8 @@ for i in range(n_batches):
 #FINALLY, TEST IT
 print('Evaluating net performance on test split...')
 bleed_net.eval()
-for test_idx in range(10):
-    x, y = next_batch(test_pf_loader_pos, test_pf_loader_neg, batch_size=25)
+for test_idx in range(100):
+    x, y = next_batch(test_pf_loader_pos, test_pf_loader_neg, batch_size=10)
     x_test_tensor = torch.from_numpy(x).float().to(device)
     y_test_tensor = torch.from_numpy(y).long().to(device)
     y_test_tensor = y_test_tensor.argmax(dim=1)
@@ -144,6 +146,7 @@ for test_idx in range(10):
     yhat_choice = yhat.argmax(dim=1)
     acc = y_test_tensor == yhat_choice
     acc = acc.sum().float() / acc.shape[0]
+    acc = acc.cpu().item()
     loss = loss_fn(yhat, y_test_tensor)  
     optimizer.zero_grad()
     print('\n\n\nTEST Loss: {} | Acc: {} | Batch {}/{}\n\n\n'.format(loss.item(),acc,i,n_batches))
@@ -154,6 +157,7 @@ print('Saving the model...')
 import time
 timestr = time.strftime("%Y%m%d-%H%M%S")
 torch.save(bleed_net.state_dict(), 'models/bleednet_testacc_{}_{}.torch'.format(acc,timestr))
+acc = int(np.mean([i[1] for i in test_loss_log]) * 100)
 print('Model saved in:','models/bleednet_testacc_{}_{}.torch'.format(acc,timestr))
 
 plt.plot([i[0] for i in train_loss_log])
