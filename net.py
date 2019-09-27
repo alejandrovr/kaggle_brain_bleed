@@ -39,29 +39,27 @@ class BleedNet(nn.Module):
         return out
     
 
-
-class BleedNetLight(nn.Module):
+class BleedNet2(nn.Module):
     def __init__(self, activation='relu'):
-        super(BleedNet, self).__init__()
+        super(BleedNet2, self).__init__()
         if activation == 'relu':
             self.activation = nn.ReLU()
         elif activation == 'elu':
             self.activation = nn.ELU()
 
         self.layer1 = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=4, stride=1, padding=0),
+            nn.Conv2d(1, 32, kernel_size=8, stride=1, padding=0),
             self.activation,
-            nn.AdaptiveMaxPool2d(50),
         )
         
         self.layer2 = nn.Sequential(
             nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
             self.activation,
-            nn.AdaptiveMaxPool2d(5),
+            nn.AdaptiveMaxPool2d(50),
         )
         
         self.wrap_up = nn.Sequential(
-            nn.Linear(64 * 5 * 5, 512),
+            nn.Linear(64 * 50 * 50, 512),
             self.activation,
             nn.Linear(512, 2),
         )
@@ -79,9 +77,9 @@ class BleedNetLight(nn.Module):
 
 if __name__ == '__main__':
     import numpy as np
-    net = BleedNet()
+    net = BleedNet2()
     print('Batch!')
-    fake_input = np.random.rand(100, 1, 512, 512) #5 batches, 1channel, 500*500 box
+    fake_input = np.random.rand(3, 1, 512, 512) #5 batches, 1channel, 500*500 box
     fake_input = torch.from_numpy(fake_input).float()
     yhat = net.forward(fake_input)
     print('Done',yhat)

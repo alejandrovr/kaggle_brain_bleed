@@ -1,7 +1,7 @@
 from code.net import BleedNet
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import pickle
 import random
 import glob
@@ -13,7 +13,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau, ExponentialLR
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
 from tqdm import tqdm
-from code.net import BleedNet
+from code.net import BleedNet, BleedNet2
 from code.featurize import next_batch, PF_Loader
 import torch.nn as nn
 import torch.optim as optim
@@ -66,23 +66,24 @@ else:
     test = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/split_test.csv')
 
 #Load data
-train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df) 
+train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df.sample(1000))
+
+
 val_pf_loader_pos, val_pf_loader_neg = df2pf_loader(val) 
 test_pf_loader_pos, test_pf_loader_neg = df2pf_loader(test) 
 
 #Learning and net parameters
-n_batches = 5000
-batch_size = 25
+n_batches = 1000
+batch_size = 10
 lr = 0.1
-lr_log = 0.1
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 loss_fn = nn.CrossEntropyLoss()
-bleed_net = BleedNet()
+bleed_net = BleedNet2()
 bleed_net.to(device)
 optimizer = optim.SGD(bleed_net.parameters(), lr=lr) #momentum?
 from torch.optim.lr_scheduler import StepLR
 stepsize = 100
-lr_gamma = 0.5
+lr_gamma = 0.9
 scheduler = StepLR(optimizer, step_size=stepsize, gamma=lr_gamma)
 
 #Initialize logs
@@ -114,7 +115,7 @@ for i in range(n_batches):
     if i % 100 == 0:
         bleed_net.eval()
         try:
-            x, y = next_batch(val_pf_loader_pos, val_pf_loader_neg, batch_size=25)
+            x, y = next_batch(val_pf_loader_pos, val_pf_loader_neg, batch_size=20)
         except:
             continue
         x_val_tensor = torch.from_numpy(x).float().to(device)

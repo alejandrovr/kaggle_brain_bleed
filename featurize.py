@@ -12,6 +12,7 @@ def dcm2np(dcm_file):
     ds = pydicom.dcmread(dcm_file)
     im = ds.pixel_array
     im = im / im.max()
+    #im = im / im.mean()
     return im
 
 def next_batch(pf_loader_p, pf_loader_n, batch_size=100):
@@ -21,7 +22,7 @@ def next_batch(pf_loader_p, pf_loader_n, batch_size=100):
             x, y = pf_loader_p.__getitem__(pos_neg=1)
         else:
             x, y = pf_loader_n.__getitem__(pos_neg=0)
-
+        #input('next?')
         if x.shape == (512, 512):
             batch.append((x,y))
 
@@ -46,7 +47,7 @@ class PF_Loader(Dataset):
         file_name = '/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/stage_1_train_images/ID_'+img_name+'.dcm'
         np_image = dcm2np(file_name)
         label = pos_neg
-        #plt.imshow(np_image)
+        #plt.imshow(np_image, cmap=plt.cm.bone)
         #plt.title(str(label))
         #plt.show()
         return np_image, label
