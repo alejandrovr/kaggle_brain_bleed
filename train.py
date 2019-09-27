@@ -66,14 +66,14 @@ else:
     test = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/split_test.csv')
 
 #Load data
-train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df.sample(1000))
+train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df.sample(10000))
 
 
 val_pf_loader_pos, val_pf_loader_neg = df2pf_loader(val) 
 test_pf_loader_pos, test_pf_loader_neg = df2pf_loader(test) 
 
 #Learning and net parameters
-n_batches = 1000
+n_batches = 2000
 batch_size = 10
 lr = 0.1
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
