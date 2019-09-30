@@ -11,8 +11,11 @@ from torch.utils.data import Dataset
 def dcm2np(dcm_file):
     ds = pydicom.dcmread(dcm_file)
     im = ds.pixel_array
-    im = im / im.max()
-    #im = im / im.mean()
+    try:
+        im = im / im.max()
+    except:
+        print('Something went wrong!')
+        im = im * 0 
     return im
 
 def next_batch(pf_loader_p, pf_loader_n, batch_size=100):

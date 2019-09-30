@@ -66,16 +66,16 @@ else:
     test = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/split_test.csv')
 
 #Load data
-train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df.sample(100000))
+train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df.sample(1000))
 
 
 val_pf_loader_pos, val_pf_loader_neg = df2pf_loader(val) 
 test_pf_loader_pos, test_pf_loader_neg = df2pf_loader(test) 
 
 #Learning and net parameters
-n_batches = 4000
-batch_size = 20
-lr = 0.1
+n_batches = 500
+batch_size = 10
+lr = 0.01
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 loss_fn = nn.CrossEntropyLoss()
 bleed_net = BleedNet2()
@@ -149,10 +149,10 @@ for test_idx in range(100):
     acc = acc.cpu().item()
     loss = loss_fn(yhat, y_test_tensor)  
     optimizer.zero_grad()
-    print('\n\n\nTEST Loss: {} | Acc: {} | Batch {}/{}\n\n\n'.format(loss.item(),acc,i,n_batches))
+    #print('\n\n\nTEST Loss: {} | Acc: {} | Batch {}/{}\n\n\n'.format(loss.item(),acc,i,n_batches))
     test_loss_log.append((loss.item(),acc))
 
-
+print([i[1] for i in test_loss_log])
 print('Saving the model...')
 import time
 timestr = time.strftime("%Y%m%d-%H%M%S")
@@ -160,9 +160,10 @@ torch.save(bleed_net.state_dict(), 'models/bleednet_testacc_{}_{}.torch'.format(
 acc = int(np.mean([i[1] for i in test_loss_log]) * 100)
 print('Model saved in:','models/bleednet_testacc_{}_{}.torch'.format(acc,timestr))
 
-plt.plot([i[0] for i in train_loss_log])
-plt.plot([i[1] for i in val_loss_log])
-plt.plot([i[1] for i in test_loss_log])
+plt.plot([i[0] for i in train_loss_log],color='blue')
+plt.plot([i[1] for i in train_loss_log],color='red')
+#plt.plot([i[1] for i in val_loss_log])
+#plt.plot([i[1] for i in test_loss_log])
 plt.show()
 print('Exiting...')
 

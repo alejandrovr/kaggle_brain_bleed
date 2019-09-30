@@ -59,9 +59,9 @@ class BleedNet2(nn.Module):
         )
         
         self.wrap_up = nn.Sequential(
-            nn.Linear(64 * 50 * 50, 512),
+            nn.Linear(64 * 50 * 50, 1024),
             self.activation,
-            nn.Linear(512, 2),
+            nn.Linear(1024, 2),
         )
 
     def forward(self, x):
