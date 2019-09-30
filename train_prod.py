@@ -1,5 +1,3 @@
-from code.net import BleedNet
-
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import pickle
@@ -24,10 +22,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.utils import shuffle
 
-def df2pf_loader(df):
+def df2pf_loader(df,sel_subtype=='any'):
     df['Sub_type'] = df['ID'].str.split("_", n = 3, expand = True)[2]
     df['PatientID'] = df['ID'].str.split("_", n = 3, expand = True)[1]
-    bleed_subtype_df = df.loc[df['Sub_type'] == 'any']
+    bleed_subtype_df = df.loc[df['Sub_type'] == sel_subtype]
 
     df_subtype_pos = bleed_subtype_df.loc[bleed_subtype_df['Label'] == 1]
     df_subtype_neg = bleed_subtype_df.loc[bleed_subtype_df['Label'] == 0]
@@ -66,25 +64,28 @@ else:
     test = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/split_test.csv')
 
 #Load data
-train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df.sample(100000))
-
-
-val_pf_loader_pos, val_pf_loader_neg = df2pf_loader(val) 
-test_pf_loader_pos, test_pf_loader_neg = df2pf_loader(test) 
+bleed_types = ['intraparenchymal', 'any', 'epidural', 'intraventricular','subarachnoid', 'subdural']
+sel_type = bleed_types[0]
+train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df.sample(100000), sel_subtype=sel_type)
+val_pf_loader_pos, val_pf_loader_neg = df2pf_loader(val, sel_subtype=sel_type) 
+test_pf_loader_pos, test_pf_loader_neg = df2pf_loader(test, sel_subtype=sel_type) 
 
 #Learning and net parameters
 n_batches = 2500
 batch_size = 20
-lr = 0.1
+lr = 0.01
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 loss_fn = nn.CrossEntropyLoss()
 bleed_net = BleedNet2()
-#bleed_net.half()
+weights_path = '/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/code/models/bleednet_testacc_74_20190930-174112.torch'
+bleed_net.load_state_dict(torch.load(weights_path))
+#bleed_net.wrap_up[2] = nn.Linear(in_features=512, out_features=2, bias=True)
 bleed_net.to(device)
 optimizer = optim.SGD(bleed_net.parameters(), lr=lr) #momentum?
+
 from torch.optim.lr_scheduler import StepLR
-stepsize = 100 #100
-lr_gamma = 0.99
+stepsize = 100 
+lr_gamma = 0.9
 scheduler = StepLR(optimizer, step_size=stepsize, gamma=lr_gamma)
 
 #Initialize logs
@@ -158,7 +159,7 @@ print('Saving the model...')
 import time
 timestr = time.strftime("%Y%m%d-%H%M%S")
 acc = int(np.mean([i[1] for i in test_loss_log]) * 100)
-torch.save(bleed_net.state_dict(), 'models/bleednet_testacc_{}_{}.torch'.format(acc,timestr))
+torch.save(bleed_net.state_dict(), 'models/bleednet_{}_testacc_{}_{}.torch'.format(sel_type,acc,timestr))
 print('Model saved in:','models/bleednet_testacc_{}_{}.torch'.format(acc,timestr))
 
 plt.plot([i[0] for i in train_loss_log],color='blue')
