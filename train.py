@@ -43,13 +43,13 @@ if make_split:
     df = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/stage_1_train.csv')
     df = shuffle(df)
 
-    msk = np.random.rand(len(df)) < 0.8 #80% for training
+    msk = np.random.rand(len(df)) < 0.9 #90% for training
     train = df[msk]
     val_test = df[~msk]
 
     msk_val_test = np.random.rand(len(val_test)) < 0.5
-    val = val_test[msk_val_test] #10% val
-    test = val_test[~msk_val_test] #10% test
+    val = val_test[msk_val_test] #5% val
+    test = val_test[~msk_val_test] #5% test
 
     print('Train size:', len(train))
     print('Val size:', len(val))
@@ -66,14 +66,13 @@ else:
     test = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/split_test.csv')
 
 #Load data
-train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df.sample(100000))
-
-
+#train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df.sample(500000))
+train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df)
 val_pf_loader_pos, val_pf_loader_neg = df2pf_loader(val) 
 test_pf_loader_pos, test_pf_loader_neg = df2pf_loader(test) 
 
 #Learning and net parameters
-n_batches = 2500
+n_batches = 3000
 batch_size = 20
 lr = 0.1
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -81,7 +80,7 @@ loss_fn = nn.CrossEntropyLoss()
 bleed_net = BleedNet2()
 #bleed_net.half()
 bleed_net.to(device)
-optimizer = optim.SGD(bleed_net.parameters(), lr=lr) #momentum?
+optimizer = optim.SGD(bleed_net.parameters(), lr=lr, momentum=0.01) #momentum?
 from torch.optim.lr_scheduler import StepLR
 stepsize = 100 #100
 lr_gamma = 0.99
@@ -117,7 +116,7 @@ for i in range(n_batches):
     if i % 100 == 0:
         bleed_net.eval()
         try:
-            x, y = next_batch(val_pf_loader_pos, val_pf_loader_neg, batch_size=25)
+            x, y = next_batch(val_pf_loader_pos, val_pf_loader_neg, batch_size=15)
         except:
             continue
         x_val_tensor = torch.from_numpy(x).float().to(device)
