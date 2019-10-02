@@ -25,6 +25,9 @@ import pandas as pd
 from sklearn.utils import shuffle
 from torchvision import datasets, models, transforms
 
+#PLay with http://nilearn.github.io/plotting/index.html#available-colormaps
+
+
 def df2pf_loader(df):
     df['Sub_type'] = df['ID'].str.split("_", n = 3, expand = True)[2]
     df['PatientID'] = df['ID'].str.split("_", n = 3, expand = True)[1]
@@ -120,7 +123,7 @@ for i in range(n_batches):
     if i % 100 == 0:
         bleed_net.eval()
         try:
-            x, y = next_batch(val_pf_loader_pos, val_pf_loader_neg, batch_size=15)
+            x, y = next_batch(val_pf_loader_pos, val_pf_loader_neg, batch_size=batch_size)
         except:
             continue
         x_val_tensor = torch.from_numpy(x).float().to(device)
@@ -141,8 +144,8 @@ for i in range(n_batches):
 #FINALLY, TEST IT
 print('Evaluating net performance on test split...')
 bleed_net.eval()
-for test_idx in range(100):
-    x, y = next_batch(test_pf_loader_pos, test_pf_loader_neg, batch_size=10)
+for test_idx in range(30):
+    x, y = next_batch(test_pf_loader_pos, test_pf_loader_neg, batch_size=batch_size)
     x_test_tensor = torch.from_numpy(x).float().to(device)
     y_test_tensor = torch.from_numpy(y).long().to(device)
     y_test_tensor = y_test_tensor.argmax(dim=1)
