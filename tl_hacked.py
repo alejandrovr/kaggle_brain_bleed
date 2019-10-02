@@ -23,6 +23,7 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.utils import shuffle
+from torchvision import datasets, models, transforms
 
 def df2pf_loader(df):
     df['Sub_type'] = df['ID'].str.split("_", n = 3, expand = True)[2]
@@ -66,24 +67,25 @@ else:
     test = pd.read_csv('/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/split_test.csv')
 
 #Load data
-#train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df.sample(500000))
+#train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df.sample(100000))
 train_pf_loader_pos, train_pf_loader_neg = df2pf_loader(df)
 val_pf_loader_pos, val_pf_loader_neg = df2pf_loader(val) 
 test_pf_loader_pos, test_pf_loader_neg = df2pf_loader(test) 
 
 #Learning and net parameters
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+lr = 0.01
 n_batches = 3000
 batch_size = 20
-lr = 0.1
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-#loss_fn = nn.CrossEntropyLoss()
+bleed_net = models.resnet18(pretrained=True)
+num_ftrs = bleed_net.fc.in_features
+bleed_net.fc = nn.Linear(num_ftrs, 2)
+bleed_net = bleed_net.to(device)
 loss_fn = nn.CrossEntropyLoss()
-bleed_net = BleedNet3()
-#bleed_net.half()
-bleed_net.to(device)
-optimizer = optim.SGD(bleed_net.parameters(), lr=lr, momentum=0.01) #momentum?
+optimizer = optim.SGD(bleed_net.parameters(), lr=lr)
+
 from torch.optim.lr_scheduler import StepLR
-stepsize = 100 #100
+stepsize = 100 
 lr_gamma = 0.99
 scheduler = StepLR(optimizer, step_size=stepsize, gamma=lr_gamma)
 
@@ -92,6 +94,7 @@ train_loss_log = []
 val_loss_log = []
 test_loss_log = []
 
+#10, 3, 224, 224
 
 #TRAIN THE MODEL
 for i in range(n_batches):

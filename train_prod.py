@@ -73,7 +73,7 @@ for sel_type in bleed_types:
     #Learning and net parameters
     n_batches = 800 #enough to of 10k intraparenchymal
     batch_size = 10
-    lr = 0.01
+    lr = 0.1
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     loss_fn = nn.CrossEntropyLoss()
     bleed_net = BleedNet2()
