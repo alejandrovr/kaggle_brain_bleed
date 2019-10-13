@@ -11,23 +11,41 @@ from torch.utils.data import Dataset
 def dcm2np(dcm_file):
     ds = pydicom.dcmread(dcm_file)
     im = ds.pixel_array
-    im = im / im.max()
-    #im = im / im.mean()
+    try:
+        im = im / im.max()
+    except:
+        raise
+
     return im
 
-def next_batch(pf_loader_p, pf_loader_n, batch_size=100):
+def next_batch(pf_loader_p, pf_loader_n, batch_size=100, view=False):
     batch = []
     for i in range(batch_size):
         if i % 2 == 0:
             x, y = pf_loader_p.__getitem__(pos_neg=1)
         else:
             x, y = pf_loader_n.__getitem__(pos_neg=0)
-        #input('next?')
-        if x.shape == (512, 512):
+
+        if x.shape == (224, 224, 3):
+            x = x.transpose(2,0,1)
+            if view:
+                plt.imshow(x[0])
+                plt.show()
+                input('guaaaat0?')
+
+                plt.imshow(x[1])
+                plt.show()
+                input('guaaaat1?')
+
+
+                plt.imshow(x[2])
+                plt.show()
+                input('guaaaat2?')
+
             batch.append((x,y))
 
     batch_x = np.array([i[0] for i in batch])
-    batch_x = batch_x[:,np.newaxis,:]
+    #batch_x = batch_x[:,np.newaxis,:]
     batch_y = np.array([[0,1] if i[1]==1 else [1,0] for i in batch])
 
     return batch_x, batch_y
@@ -47,10 +65,15 @@ class PF_Loader(Dataset):
         file_name = '/home/alejandro/kgl/rsna-intracranial-hemorrhage-detection/stage_1_train_images/ID_'+img_name+'.dcm'
         np_image = dcm2np(file_name)
         label = pos_neg
-        #plt.imshow(np_image, cmap=plt.cm.bone)
-        #plt.title(str(label))
-        #plt.show()
-        return np_image, label
+
+        from scipy import ndimage
+        zoomed_out = ndimage.zoom(np_image, 0.45)
+        zoomed_out = zoomed_out[:224,:224]
+        cm = plt.get_cmap('gist_rainbow')
+        zoomed_out = cm(zoomed_out)
+        zoomed_out = zoomed_out[:, :, :3]
+
+        return zoomed_out, label
 
 
 if __name__ == "__main__":
